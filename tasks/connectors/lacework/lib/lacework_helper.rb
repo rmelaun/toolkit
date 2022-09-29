@@ -9,7 +9,7 @@ module Kenna
       MAX_ATTEMPTS = 3
 
       def generate_temporary_lacework_api_token(account, api_key, api_secret)
-        uri = URI.parse("https://#{account}.lacework.net/api/v1/access/tokens")
+        uri = URI.parse("https://#{account}.lacework.net/api/v2/access/tokens")
 
         request = Net::HTTP::Post.new(uri)
         request.content_type = "application/json"
@@ -27,12 +27,12 @@ module Kenna
           http.request(request)
         end
 
-        if response.code != 200
+        if response.code != '201'
           print_debug response.message
           return nil
         end
 
-        JSON.parse(response.body)["data"].last["token"]
+        JSON.parse(response.body)['token']
       end
 
       def lacework_list_hosts(account, cve_id, temp_api_token)
@@ -41,9 +41,37 @@ module Kenna
       end
 
       def lacework_list_cves(account, temp_api_token)
-        raw = call("curl -s 'https://#{account}.lacework.net/api/v1/external/vulnerabilities/host' -H 'Authorization: Bearer #{temp_api_token}'")
-        JSON.parse(raw)
+##        raw = call("curl -s 'https://#{account}.lacework.net/api/v1/external/vulnerabilities/host' -H 'Authorization: Bearer #{temp_api_token}'")
+## POST https://YourLacework.lacework.net/api/v2/Vulnerabilities/Hosts/search
+        uri = URI.parse("https://#{account}.lacework.net/api/v2/Vulnerabilities/Hosts/search")
+
+        request = Net::HTTP::Post.new(uri)
+        request.content_type = "application/json"
+        request["X-Lw-Uaks"] = "#{temp_api_token}"
+        request.body = JSON.dump({
+                                   "filters": [ { 
+                                         "field": "status", 
+                                         "expression": "eq",  
+                                         "value": "Active" 
+                                              } ]
+                                })
+        req_options = {
+          use_ssl: uri.scheme == "https"
+        }
+
+        response = Net::HTTP.start(uri.hostname, uri.port, req_options) do |http|
+          http.request(request)
+        end
+
+        if response.code != '201'
+          print_debug response.message
+          return nil
+        end
+
+        JSON.parse(response.body)['token']
       end
+##        JSON.parse(raw)
+##      end
 
       def call(cmd)
         attempts = 0
